@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npx playwright test --reporter=html",
-    "test:ci": "npx playwright test --reporter=html"
-  },
+  "test": "npx playwright test --reporter=html",
+  "test:report": "npx playwright show-report"
+  }, 
   "keywords": [],
   "author": "",
   "license": "ISC",
