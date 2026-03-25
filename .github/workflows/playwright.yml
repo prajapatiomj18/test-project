@@ -2,19 +2,16 @@ name: Playwright Tests
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *' 
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
 
     steps:
-      - name: Print UTC and IST time
-        run: |
-          echo "UTC Time: $(date -u)"
-          echo "IST Time: $(date -u -d '+5 hours 30 minutes')"
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -33,7 +30,17 @@ jobs:
       - name: Run Tests
         run: npx playwright test
 
-      - name: Upload Report
+      - name: Zip Playwright Report
+        run: zip -r playwright-report.zip playwright-report
+
+      - name: Send Email Report
+        run: node sendReport.js
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+
+      - name: Upload Report Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
