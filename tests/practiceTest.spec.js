@@ -96,6 +96,7 @@ test('Confirmation Dialog - Alert with OK and cancel', async ({page}) => {
 });
 
 
+
 test('Prompt Dialog', async ({page}) => {
 
     await page.goto('https://testautomationpractice.blogspot.com/');
