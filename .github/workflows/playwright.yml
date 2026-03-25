@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: [ main ]
   schedule:
-    - cron: '*/5 * * * *'   # Every 5 minutes (UTC → also every 5 min IST)
+    - cron: '*/2 * * * *' 
 
 jobs:
   test:
