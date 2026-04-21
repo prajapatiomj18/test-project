@@ -145,7 +145,7 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "Playwright Test Report"
           to: ${{ github.event.inputs.email }}
-          from: EAD Automation <${{ secrets.MAIL_USERNAME }}>
+          from: Playwright CI <${{ secrets.MAIL_USERNAME }}>
           body: |
             Hello,
 
