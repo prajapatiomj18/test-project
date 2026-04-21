@@ -2,47 +2,170 @@ name: Playwright Tests
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    inputs:
+      run_type:
+        description: "Select test type (smoke = @smoke, regression = @regression)"
+        required: true
+        type: choice
+        options:
+          - all
+          - smoke
+          - regression
+
+      browser:
+        description: "Select browser"
+        required: true
+        type: choice
+        options:
+          - chromium
+          - firefox
+          - webkit
+
+      spec:
+        description: "Run file(s). (Examples: tests/login.spec.js (Single File) OR tests/login.spec.js tests/signup.spec.js (Multiple Files) OR tests/login.spec.js,tests/signup.spec.js (Multiple Files))"
+        required: false
+
+      folder:
+        description: "Run specific folder (example: tests/auth/)"
+        required: false
+
+      email:
+        description: "Enter email to receive report (example: abc123@gmail.com)"
+        required: false
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
     steps:
-
+      # Checkout repo
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Setup Node
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      # Install dependencies
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
+      # Install Playwright browsers
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      - name: Run Tests
-        run: npx playwright test
+      # Run tests
+      - name: Run Playwright Tests
+        run: |
+          echo "Starting Execution..."
 
-      - name: Zip Playwright Report
-        run: zip -r playwright-report.zip playwright-report
+          # ----------------------------
+          # SPEC (Single or Multiple Files)
+          # ----------------------------
+          if [ -n "${{ github.event.inputs.spec }}" ]; then
+            echo "Running specific file(s)"
 
-      - name: Send Email Report
-        run: node sendReport.js
+            # Support comma OR space separated files
+            FILES=$(echo "${{ github.event.inputs.spec }}" | tr ',' ' ')
+            npx playwright test $FILES \
+              --project=${{ github.event.inputs.browser }} \
+              --reporter=line,html
+
+          # ----------------------------
+          # FOLDER RUN
+          # ----------------------------
+          elif [ -n "${{ github.event.inputs.folder }}" ]; then
+            echo "Running folder"
+            npx playwright test ${{ github.event.inputs.folder }} \
+              --project=${{ github.event.inputs.browser }} \
+              --reporter=line,html
+
+          # ----------------------------
+          # SMOKE TESTS
+          # ----------------------------
+          elif [ "${{ github.event.inputs.run_type }}" = "smoke" ]; then
+            echo "Running SMOKE tests (@smoke)"
+            npx playwright test --grep "@smoke" \
+              --project=${{ github.event.inputs.browser }} \
+              --reporter=line,html
+
+          # ----------------------------
+          # REGRESSION TESTS
+          # ----------------------------
+          elif [ "${{ github.event.inputs.run_type }}" = "regression" ]; then
+            echo "Running REGRESSION tests (@regression)"
+            npx playwright test --grep "@regression" \
+              --project=${{ github.event.inputs.browser }} \
+              --reporter=line,html
+
+          # ----------------------------
+          # ALL TESTS
+          # ----------------------------
+          else
+            echo "Running ALL tests"
+            npx playwright test \
+              --project=${{ github.event.inputs.browser }} \
+              --reporter=line,html
+          fi
         env:
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          CI: true
 
+      # Prepare report
+      - name: Prepare Report Folder
+        if: always()
+        run: |
+          rm -rf latest-report
+          mkdir -p latest-report
+          cp -r playwright-report/* latest-report/ || true
+
+      # Zip Playwright Report
+      - name: Zip Report
+        if: always()
+        run: |
+          zip -r playwright-report.zip latest-report
+
+      # Upload report
       - name: Upload Report Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: playwright-report
+          path: latest-report
+
+      # Send Email (Optional)
+      - name: Send Report via Email
+        if: ${{ always() && github.event.inputs.email != '' }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "Playwright Test Report"
+          to: ${{ github.event.inputs.email }}
+          from: EAD Automation <${{ secrets.MAIL_USERNAME }}>
+          body: |
+            Hello,
+
+            Execution has completed.
+
+            Run Type: ${{ github.event.inputs.run_type }}
+            Browser: ${{ github.event.inputs.browser }}
+
+            Download and extract the attached ZIP file.
+            Open index.html to view the report.
+
+            Thanks,
+            CI System
+          attachments: playwright-report.zip
+
+      # Summary
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## Playwright Test Execution Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- Run Type: ${{ github.event.inputs.run_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Browser: ${{ github.event.inputs.browser }}" >> $GITHUB_STEP_SUMMARY
+        
